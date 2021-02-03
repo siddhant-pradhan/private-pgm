@@ -9,13 +9,15 @@ import sys
 np.random.seed(0)
 
 class LBP():
-    def __init__(self, domain, cliques, init_type = 'ones'):
+    def __init__(self, domain, cliques, init_type = 'ones', total = 1.0):
         self.domain = domain
         self.cliques = cliques
+        self.total = total
         
         self.full_list = self.cliques
-        for i in self.domain.attrs:
-            self.full_list = self.full_list + tuple(i)
+        #changed here to only cliques. marginal convergence may run into issues
+        # for i in self.domain.attrs:
+        #     self.full_list = self.full_list + tuple(i)
         
         self.phi = LBP.createPhi(self.domain, self.cliques)
         
@@ -124,7 +126,9 @@ class LBP():
                     complement = [var for var in fac if var is not f]
                     
                     for c in complement:
-                        mu_n[v][f] += t_f[c][v] 
+                        #updates modified, they are not traditional LBP
+                        # mu_n[v][f] += t_f[c][v] 
+                        mu_n[v][f] += mu_f[c][v]
                     
                     #normalize
                     mu_n[v][f] = LBP.normalize(mu_n[v][f], norm_type).log()
@@ -135,7 +139,9 @@ class LBP():
                     complement = [var for var in cl if var is not v]
                     mu_f[cl][v] = copy.deepcopy(potentials[cl])
                     for c in complement:
-                        mu_f[cl][v] += t_n[c][cl]
+                        #updates modified, they are not traditional LBP
+                        # mu_f[cl][v] += t_n[c][cl]
+                        mu_f[cl][v] += mu_n[c][cl]
 
                     mu_f[cl][v] = mu_f[cl][v].logsumexp(complement)
                     
@@ -146,17 +152,17 @@ class LBP():
             if conv_type == 'messages':
                 truth = LBP.check_convergence(t_f,mu_f,conv_crit,tol) and LBP.check_convergence(t_n,mu_n,conv_crit,tol)
                 if truth:
-                    return i+1, self.all_marginals(mu_n,mu_f)
+                    return self.all_marginals(mu_n,mu_f)
             
             elif conv_type == 'marginals':
                 mg = self.all_marginals(t_n,t_f)
                 mg1 = self.all_marginals(mu_n, mu_f)
                 truth = LBP.check_convergence(mg,mg1,conv_crit,tol)
                 if truth:
-                    return i+1, self.all_marginals(mu_n,mu_f)
+                    return self.all_marginals(mu_n,mu_f)
             
             
-        return total_iterations, self.all_marginals(mu_n,mu_f)
+        return  self.all_marginals(mu_n,mu_f)
             
             
     def marginals(self, marginal_vector, mu_n, mu_f):
@@ -181,10 +187,11 @@ class LBP():
     def all_marginals(self, mu_n, mu_f):
         
         all_marginals = {}
-        for c in self.full_list:
+        #changed here to only cliques. marginal convergence may run into issues
+        for c in self.cliques:
             all_marginals[c] = self.marginals(c, mu_n, mu_f)
             
-        return CliqueVector(all_marginals)
+        return CliqueVector(all_marginals)*self.total
     
         # return CliqueVector({cl : self.marginals(cl, mu_n, mu_f)} for cl in self.full_list)
         
@@ -201,7 +208,7 @@ def main():
     counts, m = lbp.loopy_belief_propagation(lbp.phi, conv_type='marginals')
 
     print(m[('A','B')].datavector())
-    print(m[('A')].datavector())
+    # print(m[('A')].datavector())
     
     ##################################################################################
     # n=20

@@ -3,3 +3,4 @@ from mbi.dataset import Dataset
 from mbi.factor import Factor
 from mbi.graphical_model import GraphicalModel
 from mbi.inference import FactoredInference
+from mbi.lbp import LBP

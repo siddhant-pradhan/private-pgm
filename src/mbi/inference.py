@@ -4,6 +4,8 @@ from mbi.graphical_model import CliqueVector
 from scipy.sparse.linalg import LinearOperator, eigsh, lsmr, aslinearoperator
 from scipy import optimize, sparse
 from functools import partial
+from mbi.lbp import LBP
+from mbi.factor import Factor
 
 class FactoredInference:
     def __init__(self, domain, backend = 'numpy', structural_zeros = None, metric='L2', log=False, iters=100, warm_start=False, elim_order=None):
@@ -185,7 +187,9 @@ class FactoredInference:
         self._setup(measurements, total)
         model = self.model
         cliques, theta = model.cliques, model.potentials
-        mu = model.belief_propagation(theta)
+        #replaced here
+        # mu = model.belief_propagation(theta)
+        mu = model.loopy_belief_propagation(theta, num_iter=10)
         ans = self._marginal_loss(mu)
 
         nols = stepsize is not None
@@ -204,7 +208,9 @@ class FactoredInference:
             alpha = stepsize(t)
             for i in range(25):
                 theta = omega - alpha*dL
-                mu = model.belief_propagation(theta)
+                #replaced here
+                # mu = model.belief_propagation(theta)
+                mu = model.loopy_belief_propagation(theta, num_iter = 10)
                 ans = self._marginal_loss(mu)
                 if nols or curr_loss - ans[0] >= 0.5*alpha*dL.dot(nu-mu):
                     break
@@ -230,7 +236,7 @@ class FactoredInference:
 
         loss = 0.0
         gradient = { }
-
+        # print(marginals.keys())
         for cl in marginals:
             mu = marginals[cl]
             gradient[cl] = self.Factor.zeros(mu.domain)
@@ -276,7 +282,9 @@ class FactoredInference:
             cliques = [m[3] for m in measurements] 
             if self.structural_zeros is not None:
                 cliques += list(self.structural_zeros.keys())
-            self.model = GraphicalModel(self.domain,cliques,total,elimination_order=self.elim_order)
+            #replace GraphicalModel with LBP
+            # self.model = GraphicalModel(self.domain,cliques,total,elimination_order=self.elim_order)
+            self.model = LBP(self.domain,cliques)
             zeros = { cl : self.Factor.zeros(self.domain.project(cl)) for cl in self.model.cliques }
             self.model.potentials = CliqueVector(zeros)
             if self.structural_zeros is not None:
