@@ -59,7 +59,7 @@ class LBP():
     
     @staticmethod
     def normalize(factor, norm_type):
-        factor = factor.exp()
+        # factor = factor.exp()
         if norm_type == 'sum':
             return factor/factor.sum()
         elif norm_type == 'max':
@@ -131,7 +131,8 @@ class LBP():
                         mu_n[v][f] += mu_f[c][v]
                     
                     #normalize
-                    mu_n[v][f] = LBP.normalize(mu_n[v][f], norm_type).log()
+                    # mu_n[v][f] = LBP.normalize(mu_n[v][f], norm_type)
+                    mu_n[v][f] -= mu_n[v][f].logsumexp()
             
             #factor to variable BP
             for cl in self.cliques:
@@ -146,8 +147,8 @@ class LBP():
                     mu_f[cl][v] = mu_f[cl][v].logsumexp(complement)
                     
                     #normalize
-                    mu_f[cl][v] = LBP.normalize(mu_f[cl][v], norm_type).log()
-
+                    # mu_f[cl][v] = LBP.normalize(mu_f[cl][v], norm_type)
+                    mu_f[cl][v] -= mu_f[cl][v].logsumexp()
             
             if conv_type == 'messages':
                 truth = LBP.check_convergence(t_f,mu_f,conv_crit,tol) and LBP.check_convergence(t_n,mu_n,conv_crit,tol)
@@ -174,7 +175,9 @@ class LBP():
             for f in fac:
                 p += mu_f[f][v]
 
-            return LBP.normalize(p,'sum')
+            p += np.log(self.total) - p.logsumexp()
+            # return LBP.normalize(p.exp(),'sum')
+            return p.exp()
             
         else:
             p = copy.deepcopy(self.phi[marginal_vector])
@@ -182,7 +185,9 @@ class LBP():
             for v in marginal_vector:
                 p += mu_n[v][marginal_vector]
                 
-            return LBP.normalize(p,'sum')
+            p += np.log(self.total) - p.logsumexp()
+            # return LBP.normalize(p.exp(),'sum')
+            return p.exp()
         
     def all_marginals(self, mu_n, mu_f):
         
@@ -191,7 +196,7 @@ class LBP():
         for c in self.cliques:
             all_marginals[c] = self.marginals(c, mu_n, mu_f)
             
-        return CliqueVector(all_marginals)*self.total
+        return CliqueVector(all_marginals)
     
         # return CliqueVector({cl : self.marginals(cl, mu_n, mu_f)} for cl in self.full_list)
         

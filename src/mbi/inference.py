@@ -201,10 +201,15 @@ class FactoredInference:
             stepsize = lambda t: 2.0*alpha
 
         for t in range(1, self.iters + 1):
+            # print(theta[('A','B')].datavector())
+            # print(total)
+            print(mu[('A','B')].sum())
+            
             if callback is not None:
                 callback(mu)
             omega, nu = theta, mu
             curr_loss, dL = ans
+            # print(dL[('A','B')].datavector())
             alpha = stepsize(t)
             for i in range(25):
                 theta = omega - alpha*dL
@@ -284,7 +289,7 @@ class FactoredInference:
                 cliques += list(self.structural_zeros.keys())
             #replace GraphicalModel with LBP
             # self.model = GraphicalModel(self.domain,cliques,total,elimination_order=self.elim_order)
-            self.model = LBP(self.domain,cliques)
+            self.model = LBP(self.domain,cliques, total=total)
             zeros = { cl : self.Factor.zeros(self.domain.project(cl)) for cl in self.model.cliques }
             self.model.potentials = CliqueVector(zeros)
             if self.structural_zeros is not None:
