@@ -189,7 +189,7 @@ class FactoredInference:
         cliques, theta = model.cliques, model.potentials
         #replaced here
         # mu = model.belief_propagation(theta)
-        mu = model.loopy_belief_propagation(theta, num_iter=10)
+        mu = model.loopy_belief_propagation(theta, num_iter=1)
         ans = self._marginal_loss(mu)
 
         nols = stepsize is not None
@@ -203,7 +203,7 @@ class FactoredInference:
         for t in range(1, self.iters + 1):
             # print(theta[('A','B')].datavector())
             # print(total)
-            print(mu[('A','B')].sum())
+            # print(mu[('A','B')].sum())
             
             if callback is not None:
                 callback(mu)
@@ -215,7 +215,7 @@ class FactoredInference:
                 theta = omega - alpha*dL
                 #replaced here
                 # mu = model.belief_propagation(theta)
-                mu = model.loopy_belief_propagation(theta, num_iter = 10)
+                mu = model.loopy_belief_propagation(theta, num_iter = 1)
                 ans = self._marginal_loss(mu)
                 if nols or curr_loss - ans[0] >= 0.5*alpha*dL.dot(nu-mu):
                     break

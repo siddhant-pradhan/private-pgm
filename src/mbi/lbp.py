@@ -19,7 +19,7 @@ class LBP():
         # for i in self.domain.attrs:
         #     self.full_list = self.full_list + tuple(i)
         
-        self.phi = LBP.createPhi(self.domain, self.cliques)
+        # self.phi = LBP.createPhi(self.domain, self.cliques)
         
 
     @staticmethod
@@ -29,7 +29,7 @@ class LBP():
         return phi
     
     @staticmethod
-    def createVariableBeliefs(domain, cliques, init_type = 'ones'):
+    def createVariableBeliefs(domain, cliques, init_type = 'zeros'):
         mu_n = defaultdict(dict)
         for v in domain:
             fac = [cl for cl in cliques if v in cl]
@@ -44,7 +44,7 @@ class LBP():
         return mu_n
     
     @staticmethod
-    def createFactorBeliefs(domain, cliques, init_type = 'ones'):
+    def createFactorBeliefs(domain, cliques, init_type = 'zeros'):
         mu_f = defaultdict(dict)
         for cl in cliques:
             for v in cl:
@@ -153,20 +153,20 @@ class LBP():
             if conv_type == 'messages':
                 truth = LBP.check_convergence(t_f,mu_f,conv_crit,tol) and LBP.check_convergence(t_n,mu_n,conv_crit,tol)
                 if truth:
-                    return self.all_marginals(mu_n,mu_f)
+                    return self.all_marginals(mu_n,mu_f, potentials)
             
             elif conv_type == 'marginals':
-                mg = self.all_marginals(t_n,t_f)
-                mg1 = self.all_marginals(mu_n, mu_f)
+                mg = self.all_marginals(t_n,t_f, potentials)
+                mg1 = self.all_marginals(mu_n, mu_f, potentials)
                 truth = LBP.check_convergence(mg,mg1,conv_crit,tol)
                 if truth:
-                    return self.all_marginals(mu_n,mu_f)
+                    return self.all_marginals(mu_n,mu_f, potentials)
             
             
-        return  self.all_marginals(mu_n,mu_f)
+        return  self.all_marginals(mu_n,mu_f, potentials)
             
             
-    def marginals(self, marginal_vector, mu_n, mu_f):
+    def marginals(self, marginal_vector, mu_n, mu_f, potentials):
         if len(marginal_vector) == 1:
             v = marginal_vector[0]
             p = Factor.zeros(self.domain.project(v))
@@ -180,7 +180,7 @@ class LBP():
             return p.exp()
             
         else:
-            p = copy.deepcopy(self.phi[marginal_vector])
+            p = copy.deepcopy(potentials[marginal_vector])
             
             for v in marginal_vector:
                 p += mu_n[v][marginal_vector]
@@ -189,12 +189,12 @@ class LBP():
             # return LBP.normalize(p.exp(),'sum')
             return p.exp()
         
-    def all_marginals(self, mu_n, mu_f):
+    def all_marginals(self, mu_n, mu_f, potentials):
         
         all_marginals = {}
         #changed here to only cliques. marginal convergence may run into issues
         for c in self.cliques:
-            all_marginals[c] = self.marginals(c, mu_n, mu_f)
+            all_marginals[c] = self.marginals(c, mu_n, mu_f, potentials)
             
         return CliqueVector(all_marginals)
     
@@ -202,17 +202,17 @@ class LBP():
         
         
 def main():
-    var = ('A','B','C')
-    sizes = (10,10,10)
-    dom = Domain(var, sizes)
-    indices = tuple(itertools.combinations(var,2))
+    # var = ('A','B','C')
+    # sizes = (10,10,10)
+    # dom = Domain(var, sizes)
+    # indices = tuple(itertools.combinations(var,2))
     
-    lbp = LBP(dom,indices)
+    # lbp = LBP(dom,indices)
     
 
-    counts, m = lbp.loopy_belief_propagation(lbp.phi, conv_type='marginals')
+    # counts, m = lbp.loopy_belief_propagation(lbp.phi, conv_type='marginals')
 
-    print(m[('A','B')].datavector())
+    # print(m[('A','B')].datavector())
     # print(m[('A')].datavector())
     
     ##################################################################################
@@ -234,6 +234,14 @@ def main():
     # counts, m = lbp.loopy_belief_propagation(lbp.phi)
     
     # print(counts)
+    var = ('A','B','C')
+    sizes = (2,3,4)
+    dom = Domain(var, sizes)
+    cliques = [('A','B'), ('B','C')]
+    lbp = LBP(dom, cliques)
+    potentials = { cl : Factor.zeros(dom.project(cl)) for cl in cliques }
+    marginals = lbp.loopy_belief_propagation(potentials, num_iter=100)
+    print(marginals[('A','B')].datavector())
     
     
 if __name__ == "__main__":
