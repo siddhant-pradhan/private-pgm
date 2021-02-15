@@ -20,7 +20,10 @@ class LBP():
         #     self.full_list = self.full_list + tuple(i)
         
         # self.phi = LBP.createPhi(self.domain, self.cliques)
-        
+        self.potentials = None
+        self.marginals = None
+        self.mu_f = None
+        self.mu_n = None
 
     @staticmethod
     def createPhi(domain, cliques):
@@ -100,12 +103,96 @@ class LBP():
         
         elif conv_type == 'Diff':
             return np.allclose(arr_t,arr_t1,atol=conv_tol)
+        
+    
+    def project(self,attrs):
+        
+        if type(attrs) is list:
+            attrs = tuple(attrs)
+        
+        if self.marginals is not None:
+            for cl in self.cliques:
+                if set(attrs) <= set(cl):
+                    return self.marginals[cl].project(attrs)
+                
+        #get domain to project proper domains
+        #insert key in potentials
+        #add to clique
+        #do LBP
+        #return marginal
+        
+        proj_domain = self.domain.project(attrs)
+        #avoid this
+        # self.cliques.append(attrs)
+        # self.potentials[attrs] = Factor.zeros(proj_domain)
+        ##########################################################
+        
+        # new_marginals = self.loopy_belief_propagation(self.potentials)
+        # return new_marginals[attrs]        
+        
+        ##########################################################   
+        # if self.mu_f is None and self.mu_f is None:
+        #     # print('hi')
+        #     new_marginals = self.loopy_belief_propagation(self.potentials,num_iter=10)
+        #     return new_marginals[attrs]
+        
+        #######################################################
+        
+        mu_n = copy.deepcopy(self.mu_n)
+        mu_f = copy.deepcopy(self.mu_f)
+        
+        
+        #variable to factor BP
+        for v in attrs:
+            fac = [cl for cl in self.cliques if v in cl]
+            # fac.append(attrs)
+            mu_n[v][attrs] = Factor.zeros(self.domain.project(v))
+            for f in fac:
+                mu_n[v][attrs] += mu_f[f][v]
+            
+            mu_n[v][attrs] -= mu_n[v][attrs].logsumexp() 
+            
+            # for f in fac:
+            #     mu_n[v][f] = Factor.zeros(self.domain.project(v))
+            #     complement = [cl for cl in fac if cl is not f]
+                
+            #     for c in complement:
+            #         #updates modified, they are not traditional LBP
+            #         # mu_n[v][f] += t_f[c][v] 
+            #         mu_n[v][f] += mu_f[c][v]
+            #         # print(v,f,c)
+                
+            #     #normalize
+            #     # mu_n[v][f] = LBP.normalize(mu_n[v][f], norm_type)
+            #     mu_n[v][f] -= mu_n[v][f].logsumexp()   
+                    
+        p =  Factor.zeros(proj_domain)  
+        for v in attrs:
+            p += mu_n[v][attrs]
+            
+        p += np.log(self.total) - p.logsumexp()
+        # return LBP.normalize(p.exp(),'sum')
+        return p.exp()
+            
+        # return CliqueVector(self.single_marginal(attrs,self.mu_n,self.mu_f,self.potentials))
             
     
     def loopy_belief_propagation(self, potentials, norm_type = 'sum', tol = 1e-4, conv_type = 'iterations', num_iter = 100, conv_crit = 'L1'):
         
+        # print(self.cliques)
+        mu_n = None
+        mu_f = None
+        # if self.mu_n is None and self.mu_f is None:
+        #     mu_n = LBP.createVariableBeliefs(self.domain, self.cliques)
+        #     mu_f = LBP.createFactorBeliefs(self.domain, self.cliques)
+        # else:
+        #     mu_n = copy.deepcopy(self.mu_n)
+        #     mu_f = copy.deepcopy(self.mu_f)
+            
         mu_n = LBP.createVariableBeliefs(self.domain, self.cliques)
         mu_f = LBP.createFactorBeliefs(self.domain, self.cliques)
+        
+        self.potentials = potentials
         
         total_iterations = 0
         if conv_type == 'messages' or conv_type == 'marginals':
@@ -114,7 +201,7 @@ class LBP():
             total_iterations = num_iter
             
         for i in range(total_iterations):
-            
+            # print(i)
             t_n = copy.deepcopy(mu_n)
             t_f = copy.deepcopy(mu_f)
             
@@ -153,6 +240,7 @@ class LBP():
             if conv_type == 'messages':
                 truth = LBP.check_convergence(t_f,mu_f,conv_crit,tol) and LBP.check_convergence(t_n,mu_n,conv_crit,tol)
                 if truth:
+                    self.mu_f, self.mu_n = copy.deepcopy(mu_f), copy.deepcopy(mu_n)
                     return self.all_marginals(mu_n,mu_f, potentials)
             
             elif conv_type == 'marginals':
@@ -160,13 +248,15 @@ class LBP():
                 mg1 = self.all_marginals(mu_n, mu_f, potentials)
                 truth = LBP.check_convergence(mg,mg1,conv_crit,tol)
                 if truth:
+                    self.mu_f, self.mu_n = copy.deepcopy(mu_f), copy.deepcopy(mu_n)
                     return self.all_marginals(mu_n,mu_f, potentials)
             
-            
+        self.mu_f, self.mu_n = copy.deepcopy(mu_f), copy.deepcopy(mu_n)
+        # print('hi')
         return  self.all_marginals(mu_n,mu_f, potentials)
             
             
-    def marginals(self, marginal_vector, mu_n, mu_f, potentials):
+    def single_marginal(self, marginal_vector, mu_n, mu_f, potentials):
         if len(marginal_vector) == 1:
             v = marginal_vector[0]
             p = Factor.zeros(self.domain.project(v))
@@ -194,8 +284,10 @@ class LBP():
         all_marginals = {}
         #changed here to only cliques. marginal convergence may run into issues
         for c in self.cliques:
-            all_marginals[c] = self.marginals(c, mu_n, mu_f, potentials)
+            all_marginals[c] = self.single_marginal(c, mu_n, mu_f, potentials)
             
+        
+        self.marginals = CliqueVector(all_marginals)    
         return CliqueVector(all_marginals)
     
         # return CliqueVector({cl : self.marginals(cl, mu_n, mu_f)} for cl in self.full_list)
