@@ -1,12 +1,12 @@
 import numpy as np
-from mbi import Domain, GraphicalModel, callbacks
+from mbi import Domain, GraphicalModel, callbacks, ApproxGraphicalModel
 from mbi.graphical_model import CliqueVector
 from scipy.sparse.linalg import LinearOperator, eigsh, lsmr, aslinearoperator
 from scipy import optimize, sparse
 from functools import partial
 
 class FactoredInference:
-    def __init__(self, domain, backend = 'numpy', structural_zeros = {}, metric='L2', log=False, iters=1000, warm_start=False, elim_order=None):
+    def __init__(self, domain, backend = 'numpy', structural_zeros = {}, metric='L2', log=False, iters=1000, warm_start=False, elim_order=None, marginal_oracle='exact'):
         """
         Class for learning a GraphicalModel from  noisy measurements on a data distribution
         
@@ -34,6 +34,8 @@ class FactoredInference:
         self.warm_start = warm_start
         self.history = []
         self.elim_order = elim_order
+        assert marginal_oracle in ['exact', 'approximate']
+        self.marginal_oracle = marginal_oracle
         if backend == 'torch':
             from mbi.torch_factor import Factor
             self.Factor = Factor
@@ -302,7 +304,10 @@ class FactoredInference:
         cliques = [m[3] for m in measurements] 
         if self.structural_zeros is not None:
             cliques += list(self.structural_zeros.keys())
-        model = GraphicalModel(self.domain,cliques,total,elimination_order=self.elim_order)
+        if self.marginal_oracle == 'exact':
+            model = GraphicalModel(self.domain,cliques,total,elimination_order=self.elim_order)
+        else:
+            model = ApproxGraphicalModel(self.domain,cliques,total)
         zeros = { cl : self.Factor.zeros(self.domain.project(cl)) for cl in model.cliques }
         model.potentials = CliqueVector(zeros)
         model.potentials.combine(self.structural_zeros)

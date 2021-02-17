@@ -8,7 +8,7 @@ import sys
 
 np.random.seed(0)
 
-class LBP():
+class ApproxGraphicalModel():
     def __init__(self, domain, cliques, init_type = 'ones', total = 1.0):
         self.domain = domain
         self.cliques = cliques
@@ -175,7 +175,9 @@ class LBP():
         return p.exp()
             
         # return CliqueVector(self.single_marginal(attrs,self.mu_n,self.mu_f,self.potentials))
-            
+           
+    def belief_propagation(self, potentials):
+        return self.loopy_belief_propagation(potentials, num_iter=10)
     
     def loopy_belief_propagation(self, potentials, norm_type = 'sum', tol = 1e-4, conv_type = 'iterations', num_iter = 100, conv_crit = 'L1'):
         
