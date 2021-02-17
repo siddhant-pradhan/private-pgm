@@ -2,7 +2,7 @@ import numpy as np
 import itertools
 from collections import defaultdict
 import copy
-from mbi import *
+from mbi import Domain, Factor
 from mbi.graphical_model import CliqueVector
 import sys
 
