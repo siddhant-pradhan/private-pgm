@@ -2,11 +2,13 @@ import numpy as np
 import itertools
 from collections import defaultdict
 import copy
-from mbi import Domain, Factor
+from mbi import *
 from mbi.graphical_model import CliqueVector
 import sys
 
-class ApproxGraphicalModel():
+np.random.seed(0)
+
+class LBP():
     def __init__(self, domain, cliques, init_type = 'ones', total = 1.0):
         self.domain = domain
         self.cliques = cliques
@@ -17,13 +19,13 @@ class ApproxGraphicalModel():
         # for i in self.domain.attrs:
         #     self.full_list = self.full_list + tuple(i)
         
-        # self.phi = ApproxGraphicalModel.createPhi(self.domain, self.cliques)
+        # self.phi = LBP.createPhi(self.domain, self.cliques)
         self.potentials = None
         self.marginals = None
         self.mu_f = None
         self.mu_n = None
-
-
+        
+        
     def datavector(self, flatten=True):
         """ Materialize the explicit representation of the distribution as a data vector. """
         logp = sum(self.potentials[cl] for cl in self.cliques)
@@ -90,22 +92,26 @@ class ApproxGraphicalModel():
     def check_convergence(obj_t, obj_t1, conv_type = 'L1', conv_tol = 1e-4, nested_dict = False):
         arr_t = []
         arr_t1 = []
+        count = 0
         if nested_dict:
             for i in obj_t.keys():
                 for j in obj_t[i].keys():
                     arr_t.append(obj_t[i][j].datavector())
                     arr_t1.append(obj_t1[i][j].datavector())
+                    count += 1
         
         else:
+            
             for i in obj_t.keys():
                 arr_t.append(obj_t[i].datavector())
                 arr_t1.append(obj_t1[i].datavector())
+                count += 1
                 
         arr_t = np.concatenate(arr_t).astype(None)
         arr_t1 = np.concatenate(arr_t1).astype(None)
         
         if conv_type == 'L1':
-            return ApproxGraphicalModel.norm(arr_t, arr_t1, conv_type) <= conv_tol
+            return np.sum(np.abs(arr_t-arr_t1))/count <= conv_tol
         
         elif conv_type == 'Diff':
             return np.allclose(arr_t,arr_t1,atol=conv_tol)
@@ -124,7 +130,7 @@ class ApproxGraphicalModel():
         #get domain to project proper domains
         #insert key in potentials
         #add to clique
-        #do ApproxGraphicalModel
+        #do LBP
         #return marginal
         
         proj_domain = self.domain.project(attrs)
@@ -144,13 +150,8 @@ class ApproxGraphicalModel():
         
         #######################################################
         
-        if self.mu_n is None:
-            self.loopy_belief_propagation(self.potentials, iters=10)
-
         mu_n = copy.deepcopy(self.mu_n)
         mu_f = copy.deepcopy(self.mu_f)
-
-        
         
         
         #variable to factor BP
@@ -168,13 +169,13 @@ class ApproxGraphicalModel():
             #     complement = [cl for cl in fac if cl is not f]
                 
             #     for c in complement:
-            #         #updates modified, they are not traditional ApproxGraphicalModel
+            #         #updates modified, they are not traditional LBP
             #         # mu_n[v][f] += t_f[c][v] 
             #         mu_n[v][f] += mu_f[c][v]
             #         # print(v,f,c)
                 
             #     #normalize
-            #     # mu_n[v][f] = ApproxGraphicalModel.normalize(mu_n[v][f], norm_type)
+            #     # mu_n[v][f] = LBP.normalize(mu_n[v][f], norm_type)
             #     mu_n[v][f] -= mu_n[v][f].logsumexp()   
                     
         p =  Factor.zeros(proj_domain)  
@@ -182,28 +183,26 @@ class ApproxGraphicalModel():
             p += mu_n[v][attrs]
             
         p += np.log(self.total) - p.logsumexp()
-        # return ApproxGraphicalModel.normalize(p.exp(),'sum')
+        # return LBP.normalize(p.exp(),'sum')
         return p.exp()
             
         # return CliqueVector(self.single_marginal(attrs,self.mu_n,self.mu_f,self.potentials))
-           
-    def belief_propagation(self, potentials):
-        return self.loopy_belief_propagation(potentials, iters=10)
+            
     
-    def loopy_belief_propagation(self, potentials, norm_type = 'sum', tol = 1e-4, conv_type = 'iterations', iters = 100, conv_crit = 'L1', callback=None):
+    def loopy_belief_propagation(self, potentials, norm_type = 'sum', tol = 1e-4, conv_type = 'iterations', num_iter = 100, conv_crit = 'L1', alpha = 1.0, callback = None):
         
         # print(self.cliques)
         mu_n = None
         mu_f = None
         # if self.mu_n is None and self.mu_f is None:
-        #     mu_n = ApproxGraphicalModel.createVariableBeliefs(self.domain, self.cliques)
-        #     mu_f = ApproxGraphicalModel.createFactorBeliefs(self.domain, self.cliques)
+        #     mu_n = LBP.createVariableBeliefs(self.domain, self.cliques)
+        #     mu_f = LBP.createFactorBeliefs(self.domain, self.cliques)
         # else:
         #     mu_n = copy.deepcopy(self.mu_n)
         #     mu_f = copy.deepcopy(self.mu_f)
             
-        mu_n = ApproxGraphicalModel.createVariableBeliefs(self.domain, self.cliques)
-        mu_f = ApproxGraphicalModel.createFactorBeliefs(self.domain, self.cliques)
+        mu_n = LBP.createVariableBeliefs(self.domain, self.cliques)
+        mu_f = LBP.createFactorBeliefs(self.domain, self.cliques)
         
         self.potentials = potentials
         
@@ -211,7 +210,7 @@ class ApproxGraphicalModel():
         if conv_type == 'messages' or conv_type == 'marginals':
             total_iterations = sys.maxsize
         elif conv_type == 'iterations':
-            total_iterations = iters
+            total_iterations = num_iter
             
         for i in range(total_iterations):
             # print(i)
@@ -226,50 +225,65 @@ class ApproxGraphicalModel():
                     complement = [var for var in fac if var is not f]
                     
                     for c in complement:
-                        #updates modified, they are not traditional ApproxGraphicalModel
+                        #updates modified, they are not traditional LBP
                         # mu_n[v][f] += t_f[c][v] 
                         mu_n[v][f] += mu_f[c][v]
                     
                     #normalize
-                    # mu_n[v][f] = ApproxGraphicalModel.normalize(mu_n[v][f], norm_type)
+                    # mu_n[v][f] = LBP.normalize(mu_n[v][f], norm_type)
                     mu_n[v][f] -= mu_n[v][f].logsumexp()
-            
+                    #damped equation
+                    mu_n[v][f] = alpha*mu_n[v][f] + (1-alpha)*t_n[v][f]
             #factor to variable BP
             for cl in self.cliques:
                 for v in cl:
                     complement = [var for var in cl if var is not v]
                     mu_f[cl][v] = copy.deepcopy(potentials[cl])
                     for c in complement:
-                        #updates modified, they are not traditional ApproxGraphicalModel
+                        #updates modified, they are not traditional LBP
                         # mu_f[cl][v] += t_n[c][cl]
                         mu_f[cl][v] += mu_n[c][cl]
 
                     mu_f[cl][v] = mu_f[cl][v].logsumexp(complement)
                     
                     #normalize
-                    # mu_f[cl][v] = ApproxGraphicalModel.normalize(mu_f[cl][v], norm_type)
+                    # mu_f[cl][v] = LBP.normalize(mu_f[cl][v], norm_type)
                     mu_f[cl][v] -= mu_f[cl][v].logsumexp()
+                    #damped equation
+                    mu_f[cl][v] = alpha*mu_f[cl][v] + (1-alpha)*t_f[cl][v]
+                    
+            #comment and delete   
+            # mg = self.all_marginals(t_n,t_f, potentials)
+            # mg1 = self.all_marginals(mu_n, mu_f, potentials)
+            # l1 = 0
+            # count = 0
+            # for k in mg.keys():
+            #     l1 += np.sum(np.abs(mg[k].datavector() - mg1[k].datavector()))
+            #     count += 1
+                
+            # print(l1/count)
             
             if conv_type == 'messages':
-                truth = ApproxGraphicalModel.check_convergence(t_f,mu_f,conv_crit,tol) and ApproxGraphicalModel.check_convergence(t_n,mu_n,conv_crit,tol)
+                truth = LBP.check_convergence(t_f,mu_f,conv_crit,tol) and LBP.check_convergence(t_n,mu_n,conv_crit,tol)
                 if truth:
                     self.mu_f, self.mu_n = copy.deepcopy(mu_f), copy.deepcopy(mu_n)
                     return self.all_marginals(mu_n,mu_f, potentials)
-        
+                
             if callback is not None:
                 mg = self.all_marginals(mu_n, mu_f, potentials)
                 callback(mg)
-    
-            elif conv_type == 'marginals':
+            
+            elif conv_type == 'marginals' and i != 0:
                 mg = self.all_marginals(t_n,t_f, potentials)
                 mg1 = self.all_marginals(mu_n, mu_f, potentials)
-                truth = ApproxGraphicalModel.check_convergence(mg,mg1,conv_crit,tol)
+                truth = LBP.check_convergence(mg,mg1,conv_crit,tol)
                 if truth:
                     self.mu_f, self.mu_n = copy.deepcopy(mu_f), copy.deepcopy(mu_n)
-                    return self.all_marginals(mu_n,mu_f, potentials)
+                    # print(i)
+                    #change the return type
+                    return i+1, self.all_marginals(mu_n,mu_f, potentials)
             
         self.mu_f, self.mu_n = copy.deepcopy(mu_f), copy.deepcopy(mu_n)
-        # print('hi')
         return  self.all_marginals(mu_n,mu_f, potentials)
             
             
@@ -283,7 +297,7 @@ class ApproxGraphicalModel():
                 p += mu_f[f][v]
 
             p += np.log(self.total) - p.logsumexp()
-            # return ApproxGraphicalModel.normalize(p.exp(),'sum')
+            # return LBP.normalize(p.exp(),'sum')
             return p.exp()
             
         else:
@@ -293,7 +307,7 @@ class ApproxGraphicalModel():
                 p += mu_n[v][marginal_vector]
                 
             p += np.log(self.total) - p.logsumexp()
-            # return ApproxGraphicalModel.normalize(p.exp(),'sum')
+            # return LBP.normalize(p.exp(),'sum')
             return p.exp()
         
     def all_marginals(self, mu_n, mu_f, potentials):
@@ -316,7 +330,7 @@ def main():
     # dom = Domain(var, sizes)
     # indices = tuple(itertools.combinations(var,2))
     
-    # lbp = ApproxGraphicalModel(dom,indices)
+    # lbp = LBP(dom,indices)
     
 
     # counts, m = lbp.loopy_belief_propagation(lbp.phi, conv_type='marginals')
@@ -338,7 +352,7 @@ def main():
     # dom = Domain(var, sizes)
     # indices = tuple(itertools.combinations(var,2))
     
-    # lbp = ApproxGraphicalModel(dom,indices)
+    # lbp = LBP(dom,indices)
     
     # counts, m = lbp.loopy_belief_propagation(lbp.phi)
     
@@ -347,9 +361,9 @@ def main():
     sizes = (2,3,4)
     dom = Domain(var, sizes)
     cliques = [('A','B'), ('B','C')]
-    lbp = ApproxGraphicalModel(dom, cliques)
+    lbp = LBP(dom, cliques)
     potentials = { cl : Factor.zeros(dom.project(cl)) for cl in cliques }
-    marginals = lbp.loopy_belief_propagation(potentials, iters=100)
+    marginals = lbp.loopy_belief_propagation(potentials, num_iter=100)
     print(marginals[('A','B')].datavector())
     
     
