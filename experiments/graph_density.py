@@ -1,4 +1,4 @@
-from mbi import Domain, Factor, ApproxGraphicalModel
+from mbi import Domain, Factor, ApproxGraphicalModel, FactorGraph
 from mbi.graphical_model import CliqueVector
 import itertools
 import numpy as np
@@ -14,8 +14,8 @@ def error(true, est):
 
 if __name__ == '__main__':
 
-    mult_factor = 10
-    iters = 1000
+    mult_factor = 1
+    iters = 100
     trials = 5
 
 
@@ -35,10 +35,12 @@ if __name__ == '__main__':
             
             cliques = [pairs[i] for i in idx]
 
-            model = ApproxGraphicalModel(domain, cliques)
+            model = FactorGraph(domain, cliques)
             potentials = { cl : Factor.random(domain.project(cl))*mult_factor for cl in cliques }
-            
-            est = model.loopy_belief_propagation(potentials, iters=iters)
+           
+            counting_v = model.get_counting_numbers()
+            est = model.convergent_belief_propagation(potentials, counting_v=counting_v, iters=iters)
+            model.potentials = potentials
             true = exact_marginals(model, cliques)
             unif = CliqueVector({ cl : Factor.uniform(domain.project(cl)) for cl in cliques })
             E = error(true, est)

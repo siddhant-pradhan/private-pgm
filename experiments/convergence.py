@@ -1,4 +1,4 @@
-from mbi import Domain, Factor, ApproxGraphicalModel
+from mbi import Domain, Factor, ApproxGraphicalModel, FactorGraph
 from mbi.graphical_model import CliqueVector
 import itertools
 import numpy as np
@@ -14,13 +14,13 @@ def error(true, est):
 
 if __name__ == '__main__':
 
-    mult_factor = 3
+    mult_factor = 1
     iters = 1000
     trials = 5
-    K = 15
+    K = 3
 
 
-    attributes = ['A','B','C','D','E','F','G']
+    attributes = ['A','B','C']#,'D','E','F','G']
     sizes = [8 for _ in attributes]
     domain = Domain(attributes, sizes)
 
@@ -32,7 +32,7 @@ if __name__ == '__main__':
         idx = np.random.choice(len(pairs), K, replace=False)
         cliques = [pairs[i] for i in idx]
 
-        model = ApproxGraphicalModel(domain, cliques)
+        model = FactorGraph(domain, cliques)
         potentials = { cl : Factor.random(domain.project(cl))*mult_factor for cl in cliques }
         model.potentials = potentials
         true = exact_marginals(model, cliques)
@@ -40,8 +40,9 @@ if __name__ == '__main__':
         def callback(est):
             E = error(true, est)
             ys.append(E)
-        
-        est = model.loopy_belief_propagation(potentials, iters=iters, callback=callback)
+       
+        counting_v = model.get_counting_numbers() 
+        est = model.convergent_belief_propagation(potentials, counting_v=counting_v, iters=iters, callback=callback)
         plt.plot(range(iters), ys, '.', label='Loopy BP')
 
 
