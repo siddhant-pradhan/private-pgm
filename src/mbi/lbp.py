@@ -9,7 +9,7 @@ import random
 
 np.random.seed(0)
 
-class LBP():
+class ApproxGraphicalModel():
     def __init__(self, domain, cliques, init_type = 'ones', total = 1.0):
         self.domain = domain
         self.cliques = cliques
@@ -202,8 +202,8 @@ class LBP():
         #     mu_n = copy.deepcopy(self.mu_n)
         #     mu_f = copy.deepcopy(self.mu_f)
             
-        mu_n = LBP.createVariableBeliefs(self.domain, self.cliques)
-        mu_f = LBP.createFactorBeliefs(self.domain, self.cliques)
+        mu_n = ApproxGraphicalModel.createVariableBeliefs(self.domain, self.cliques)
+        mu_f = ApproxGraphicalModel.createFactorBeliefs(self.domain, self.cliques)
         
         self.potentials = potentials
         
@@ -265,7 +265,7 @@ class LBP():
             # print(l1/count)
             
             if conv_type == 'messages':
-                truth = LBP.check_convergence(t_f,mu_f,conv_crit,tol) and LBP.check_convergence(t_n,mu_n,conv_crit,tol)
+                truth = ApproxGraphicalModel.check_convergence(t_f,mu_f,conv_crit,tol) and LBP.check_convergence(t_n,mu_n,conv_crit,tol)
                 if truth:
                     self.mu_f, self.mu_n = copy.deepcopy(mu_f), copy.deepcopy(mu_n)
                     return self.all_marginals(mu_n,mu_f, potentials)
@@ -277,7 +277,7 @@ class LBP():
             elif conv_type == 'marginals' and i != 0:
                 mg = self.all_marginals(t_n,t_f, potentials)
                 mg1 = self.all_marginals(mu_n, mu_f, potentials)
-                truth = LBP.check_convergence(mg,mg1,conv_crit,tol)
+                truth = ApproxGraphicalModel.check_convergence(mg,mg1,conv_crit,tol)
                 if truth:
                     self.mu_f, self.mu_n = copy.deepcopy(mu_f), copy.deepcopy(mu_n)
                     # print(i)
@@ -302,8 +302,8 @@ class LBP():
         if randomize:
             random.shuffle(variables)
             
-        mu_n = LBP.createVariableBeliefs(self.domain, self.cliques)
-        mu_f = LBP.createFactorBeliefs(self.domain, self.cliques)
+        mu_n = ApproxGraphicalModel.createVariableBeliefs(self.domain, self.cliques)
+        mu_f = ApproxGraphicalModel.createFactorBeliefs(self.domain, self.cliques)
         
         self.potentials = potentials
         
@@ -354,7 +354,7 @@ class LBP():
             
             #
             if conv_type == 'messages':
-                truth = LBP.check_convergence(t_f,mu_f,conv_crit,tol) and LBP.check_convergence(t_n,mu_n,conv_crit,tol)
+                truth = ApproxGraphicalModel.check_convergence(t_f,mu_f,conv_crit,tol) and ApproxGraphicalModel.check_convergence(t_n,mu_n,conv_crit,tol)
                 if truth:
                     self.mu_f, self.mu_n = copy.deepcopy(mu_f), copy.deepcopy(mu_n)
                     return self.all_marginals(mu_n,mu_f, potentials)
@@ -366,7 +366,7 @@ class LBP():
             elif conv_type == 'marginals' and i != 0:
                 mg = self.all_marginals(t_n,t_f, potentials)
                 mg1 = self.all_marginals(mu_n, mu_f, potentials)
-                truth = LBP.check_convergence(mg,mg1,conv_crit,tol)
+                truth = ApproxGraphicalModel.check_convergence(mg,mg1,conv_crit,tol)
                 if truth:
                     self.mu_f, self.mu_n = copy.deepcopy(mu_f), copy.deepcopy(mu_n)
                     # print(i)
@@ -454,7 +454,7 @@ def main():
     sizes = (2,3,4)
     dom = Domain(var, sizes)
     cliques = [('A','B'), ('B','C')]
-    lbp = LBP(dom, cliques)
+    lbp = ApproxGraphicalModel(dom, cliques)
     potentials = { cl : Factor.zeros(dom.project(cl)) for cl in cliques }
     marginals = lbp.loopy_belief_propagation(potentials, num_iter=100)
     print(marginals[('A','B')].datavector())
