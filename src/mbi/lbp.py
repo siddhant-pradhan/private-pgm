@@ -5,6 +5,7 @@ import copy
 from mbi import *
 from mbi.graphical_model import CliqueVector
 import sys
+import random
 
 np.random.seed(0)
 
@@ -230,7 +231,7 @@ class LBP():
                         mu_n[v][f] += mu_f[c][v]
                     
                     #normalize
-                    # mu_n[v][f] = LBP.normalize(mu_n[v][f], norm_type)
+                    
                     mu_n[v][f] -= mu_n[v][f].logsumexp()
                     #damped equation
                     mu_n[v][f] = alpha*mu_n[v][f] + (1-alpha)*t_n[v][f]
@@ -285,7 +286,99 @@ class LBP():
             
         self.mu_f, self.mu_n = copy.deepcopy(mu_f), copy.deepcopy(mu_n)
         return  self.all_marginals(mu_n,mu_f, potentials)
+       
+    def asynchronous_lbp(self, potentials, tol = 1e-4, conv_type = 'iterations', num_iter = 100, conv_crit = 'L1', alpha = 1.0, callback = None, randomize = False):
+        
+        mu_n = None
+        mu_f = None
+        # if self.mu_n is None and self.mu_f is None:
+        #     mu_n = LBP.createVariableBeliefs(self.domain, self.cliques)
+        #     mu_f = LBP.createFactorBeliefs(self.domain, self.cliques)
+        # else:
+        #     mu_n = copy.deepcopy(self.mu_n)
+        #     mu_f = copy.deepcopy(self.mu_f)
+        
+        variables = copy.deepcopy(self.domain)
+        if randomize:
+            random.shuffle(variables)
             
+        mu_n = LBP.createVariableBeliefs(self.domain, self.cliques)
+        mu_f = LBP.createFactorBeliefs(self.domain, self.cliques)
+        
+        self.potentials = potentials
+        
+        total_iterations = 0
+        if conv_type == 'messages' or conv_type == 'marginals':
+            total_iterations = sys.maxsize
+        elif conv_type == 'iterations':
+            total_iterations = num_iter
+            
+        for i in range(total_iterations):
+            t_n = copy.deepcopy(mu_n)
+            t_f = copy.deepcopy(mu_f)
+            
+            for v in variables:
+                fac = [cl for cl in self.cliques if v in cl]
+                for f in fac:
+                    mu_n[v][f] = Factor.zeros(self.domain.project(v))
+                    complement_factors = [c_f for c_f in fac if c_f is not f]
+                    
+                    for cf in complement_factors:
+                        #updates modified, they are not traditional LBP
+                        # mu_n[v][f] += t_f[c][v] 
+                        mu_n[v][f] += mu_f[cf][v]
+                    
+                    #normalize
+                    
+                    mu_n[v][f] -= mu_n[v][f].logsumexp()
+                    #damped equation
+                    mu_n[v][f] = alpha*mu_n[v][f] + (1-alpha)*t_n[v][f]
+                    
+                    
+                    ##################################################################
+                    complement_variables = [var for var in f if var is not v]
+                    mu_f[f][v] = copy.deepcopy(potentials[f])
+                    for cv in complement_variables:
+                        #updates modified, they are not traditional LBP
+                        # mu_f[cl][v] += t_n[c][cl]
+                        mu_f[f][v] += mu_n[cv][f]
+
+                    mu_f[f][v] = mu_f[f][v].logsumexp(complement_variables)
+                    
+                    #normalize
+                    # mu_f[cl][v] = LBP.normalize(mu_f[cl][v], norm_type)
+                    mu_f[f][v] -= mu_f[f][v].logsumexp()
+                    #damped equation
+                    mu_f[f][v] = alpha*mu_f[f][v] + (1-alpha)*t_f[f][v]
+                    
+            
+            #
+            if conv_type == 'messages':
+                truth = LBP.check_convergence(t_f,mu_f,conv_crit,tol) and LBP.check_convergence(t_n,mu_n,conv_crit,tol)
+                if truth:
+                    self.mu_f, self.mu_n = copy.deepcopy(mu_f), copy.deepcopy(mu_n)
+                    return self.all_marginals(mu_n,mu_f, potentials)
+                
+            if callback is not None:
+                mg = self.all_marginals(mu_n, mu_f, potentials)
+                callback(mg)
+            
+            elif conv_type == 'marginals' and i != 0:
+                mg = self.all_marginals(t_n,t_f, potentials)
+                mg1 = self.all_marginals(mu_n, mu_f, potentials)
+                truth = LBP.check_convergence(mg,mg1,conv_crit,tol)
+                if truth:
+                    self.mu_f, self.mu_n = copy.deepcopy(mu_f), copy.deepcopy(mu_n)
+                    # print(i)
+                    #change the return type
+                    return i+1, self.all_marginals(mu_n,mu_f, potentials)
+            
+        self.mu_f, self.mu_n = copy.deepcopy(mu_f), copy.deepcopy(mu_n)
+        return  self.all_marginals(mu_n,mu_f, potentials)
+                    
+                    
+                    
+              
             
     def single_marginal(self, marginal_vector, mu_n, mu_f, potentials):
         if len(marginal_vector) == 1:
